@@ -4,9 +4,12 @@ package main
 //destinations ignoring any errors or return values
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -14,17 +17,37 @@ const (
 	TCP_READ_SIZE = 4096 * 1024
 )
 
-var tcpListenAddr = ":8082"
-var addresses = [...]string{"localhost:8000", "localhost:8001"}
-var timeout = time.Duration(3 * time.Second)
+var argListenAddress *string
+var argRemoteAddreses *string
+var argBgSend *bool
+var argTimeout *int
+
+//var addresses = [...]string{"localhost:8000", "localhost:8001"}
+var addresses []string
+var timeout time.Duration
 
 func main() {
-	fmt.Printf("Starting server on %s", tcpListenAddr)
+	//Load args
+	argBgSend = flag.Bool("bg-send", true, "ack to sender before forwarding to others")
+	argListenAddress = flag.String("listen-adr", ":8082", "listen address")
+	argRemoteAddreses = flag.String("remote-adr-list", "", "comma delimited list of remote hosts - e.g. host1:8082,host2:8082")
+	argTimeout = flag.Int("timeout", 3, "connect timeout in seconds")
 
-	address, _ := net.ResolveTCPAddr("tcp", tcpListenAddr)
+	flag.Parse()
+	if *argRemoteAddreses == "" {
+		fmt.Println("Error: remote-adr-list not specified")
+		flag.Usage()
+		os.Exit(1)
+	}
+	addresses = strings.Split(*argRemoteAddreses, ",")
+	timeout = time.Duration(time.Duration(*argTimeout) * time.Second)
+
+	fmt.Printf("Starting server on %s\n", *argListenAddress)
+
+	address, _ := net.ResolveTCPAddr("tcp", *argListenAddress)
 	listener, err := net.ListenTCP("tcp", address)
 	if err != nil {
-		fmt.Errorf("ERROR: ListenTCP - %s", err)
+		fmt.Printf("ERROR: ListenTCP - %s", err)
 		panic(err)
 	}
 	defer listener.Close()
@@ -32,7 +55,7 @@ func main() {
 	for {
 		conn, err := listener.AcceptTCP()
 		if err != nil {
-			fmt.Errorf("ERROR: AcceptTCP - %s", err)
+			fmt.Printf("ERROR: AcceptTCP - %s\n", err)
 			continue
 		}
 
@@ -55,7 +78,11 @@ func handleRequest(conn net.Conn) {
 	fmt.Printf("Received %d bytes\n", reqLen)
 
 	for i := range addresses {
-		go send(addresses[i], buf)
+		if *argBgSend {
+			go send(addresses[i], buf)
+		} else {
+			send(addresses[i], buf)
+		}
 	}
 	fmt.Println("handleRequest done")
 }
@@ -64,14 +91,14 @@ func send(address string, buf []byte) {
 	fmt.Printf("Sending data to %s\n", address)
 	client, err := net.DialTimeout("tcp", address, timeout) //TODO add timeout
 	if err != nil {
-		fmt.Errorf("Error connecting to %s - %s", address, err)
+		fmt.Printf("Error connecting to %s - %s\n", address, err)
 		return
 	}
 	defer client.Close()
 
 	_, err = client.Write(buf)
 	if err != nil {
-		fmt.Errorf("failed to write stats - %s", err)
+		fmt.Printf("failed to write stats - %s\n", err)
 		return
 	}
 	fmt.Printf("send to %s done\n", address)
