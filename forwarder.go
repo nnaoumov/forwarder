@@ -13,10 +13,6 @@ import (
 	"time"
 )
 
-const (
-	TCP_READ_SIZE = 4096 * 1024
-)
-
 var argListenAddress *string
 var argRemoteAddreses *string
 var argBgSend *bool
@@ -26,8 +22,7 @@ var argTimeout *int
 var addresses []string
 var timeout time.Duration
 
-func main() {
-	//Load args
+func loadArgs() {
 	argBgSend = flag.Bool("bg-send", true, "ack to sender before forwarding to others")
 	argListenAddress = flag.String("listen-adr", ":8082", "listen address")
 	argRemoteAddreses = flag.String("remote-adr-list", "", "comma delimited list of remote hosts - e.g. host1:8082,host2:8082")
@@ -41,6 +36,10 @@ func main() {
 	}
 	addresses = strings.Split(*argRemoteAddreses, ",")
 	timeout = time.Duration(time.Duration(*argTimeout) * time.Second)
+}
+
+func main() {
+	loadArgs()
 
 	fmt.Printf("Starting server on %s\n", *argListenAddress)
 
