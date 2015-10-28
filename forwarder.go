@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"time"
 )
@@ -44,17 +45,14 @@ func main() {
 func handleRequest(conn net.Conn) {
 	defer conn.Close()
 
-	buf := make([]byte, TCP_READ_SIZE)
-
-	reqLen, err := conn.Read(buf)
+	buf, err := ioutil.ReadAll(conn)
 	if err != nil {
 		fmt.Println("Error reading:", err.Error())
-	}
-	fmt.Printf("Received %d bytes\n", reqLen)
-	if reqLen >= TCP_READ_SIZE {
-		fmt.Errorf("Max packet size exceeded!")
 		return
 	}
+
+	reqLen := len(buf)
+	fmt.Printf("Received %d bytes\n", reqLen)
 
 	for i := range addresses {
 		go send(addresses[i], buf)
